@@ -1,0 +1,1122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="dark">
+  <meta name="description" content="Offline inverse Park dq0-to-abc explorer with live d/q sliders, simultaneous fixed-scale dq and abc vector panels, and a three-phase waveform.">
+  <title>dq → abc | Live Voltage Explorer v6</title>
+  <style>
+    :root {
+      --bg: #080f1b;
+      --bg-2: #0d1726;
+      --panel: rgba(19, 31, 49, .91);
+      --panel-line: #25354b;
+      --text: #eff6ff;
+      --muted: #9aacbf;
+      --soft: #687e94;
+      --teal: #54e0c6;
+      --phase-a: #4ed5bf;
+      --phase-b: #a59aff;
+      --phase-c: #ffb56d;
+      --blue: #79b8ff;
+      --grid: #27364a;
+      --radius: 19px;
+    }
+
+    * { box-sizing: border-box; }
+    html { min-width: 320px; }
+    body {
+      margin: 0;
+      color: var(--text);
+      background:
+        radial-gradient(ellipse 1000px 700px at 10% -200px, #173448aa 0%, transparent 70%),
+        radial-gradient(ellipse 800px 700px at 100% 18%, #191b385c 0%, transparent 76%),
+        var(--bg);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-variant-numeric: tabular-nums;
+      -webkit-font-smoothing: antialiased;
+      min-height: 100vh;
+    }
+    button, input { font: inherit; }
+    button { cursor: pointer; }
+    button:focus-visible, input:focus-visible, svg:focus-visible {
+      outline: 2px solid var(--blue); outline-offset: 3px;
+    }
+    .app { width: min(1460px, 100%); margin: 0 auto; padding: 35px 35px 52px; }
+    .topbar { display: flex; align-items: center; justify-content: space-between; gap: 20px; margin-bottom: 29px; }
+    .identity { display: flex; align-items: center; gap: 15px; }
+    .logo-mark {
+      display: grid; place-items: center; width: 48px; height: 48px;
+      border-radius: 15px; flex: 0 0 auto;
+      color: var(--teal); font-size: 27px; font-weight: 800;
+      background: linear-gradient(150deg, #24545d, #153240 52%, #1a263b);
+      box-shadow: inset 0 0 0 1px #5cbbb72b, 0 10px 40px #0004;
+    }
+    h1 { font-size: clamp(24px, 2.35vw, 34px); letter-spacing: -.045em; line-height: 1.05; font-weight: 730; margin: 0 0 8px; }
+    .subtitle { color: var(--muted); font-size: 13.5px; line-height: 1.5; margin: 0; }
+    .toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+    .status-chip, .toolbar-button {
+      display: inline-flex; justify-content: center; align-items: center; gap: 9px;
+      border: 1px solid var(--panel-line); border-radius: 11px;
+      padding: 10px 13px; font-size: 12.5px; white-space: nowrap;
+    }
+    .status-chip { color: #c4d3e3; background: #162536a8; }
+    .status-chip .pulse { width: 7px; height: 7px; border-radius: 50%; background: var(--teal); box-shadow: 0 0 11px #54e0c6ad; }
+    .toolbar-button { background: #17263a; color: var(--text); transition: background .15s, transform .15s; }
+    .toolbar-button:hover { background: #22394f; }
+    .toolbar-button:active { transform: translateY(1px); }
+    .toolbar-button svg { width: 16px; height: 16px; }
+
+    .metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin: 0 0 21px; }
+    .metric {
+      border: 1px solid var(--panel-line); border-radius: 15px;
+      background: linear-gradient(112deg, #1b2c40c9 0%, #111e30b8 95%);
+      padding: 17px 21px; min-height: 94px;
+    }
+    .metric-title { color: var(--muted); font-size: 12px; font-weight: 540; letter-spacing: .01em; margin: 0 0 7px; }
+    .metric-value { font-weight: 760; font-size: 26px; letter-spacing: -.04em; line-height: 1.12; }
+    .metric-value small { font-size: 13px; font-weight: 500; color: var(--muted); letter-spacing: 0; margin-left: 5px; }
+    .metric-value .check { font-size: 13px; color: var(--teal); font-weight: 500; letter-spacing: 0; margin-left: 8px; vertical-align: 3px; }
+
+    .workspace { display: grid; grid-template-columns: minmax(0, 1.64fr) minmax(355px, 1fr); align-items: start; gap: 20px; }
+    .main-column, .side-column { display: grid; gap: 20px; min-width: 0; }
+    .panel { border: 1px solid var(--panel-line); border-radius: var(--radius); background: var(--panel); box-shadow: 0 20px 60px #00000020; min-width: 0; }
+    .panel-padding { padding: 24px; }
+    .panel-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 14px; margin-bottom: 23px; }
+    .panel-header h2 { margin: 0 0 6px; font-size: 17px; font-weight: 680; letter-spacing: -.025em; }
+    .panel-header p { color: var(--muted); font-size: 12.5px; line-height: 1.5; margin: 0; }
+    .mini-tag { color: #a3c3d2; padding: 6px 9px; border-radius: 8px; border: 1px solid #365165; background: #213747; font-size: 11px; white-space: nowrap; }
+    .legend { display: flex; gap: 19px; flex-wrap: wrap; align-items: center; }
+    .legend-item { display: inline-flex; gap: 8px; align-items: center; color: #c6d7e5; font-size: 12px; }
+    .legend-swatch { width: 21px; height: 3px; border-radius: 3px; }
+    .chart-wrapper { position: relative; margin: 2px -9px 0; }
+    #waveCanvas { width: 100%; height: 412px; display: block; cursor: crosshair; touch-action: pan-y; }
+    .chart-bottom { border-top: 1px solid #283b4e; padding-top: 19px; margin-top: 9px; }
+    .realtime-label { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 13px; }
+    .realtime-label span { color: var(--muted); font-size: 12px; }
+    .realtime-label .tvalue { color: var(--text); font-weight: 670; }
+    .instant-values { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+    .instant {
+      padding: 14px 13px; border-radius: 11px; border: 1px solid #2b3b51;
+      background: #0d1929a8;
+    }
+    .instant .phase { color: var(--muted); font-size: 12px; margin-bottom: 5px; }
+    .instant .phase strong { font-weight: 710; }
+    .instant .voltage { font-size: clamp(17px, 2vw, 22px); letter-spacing: -.04em; font-weight: 700; }
+    .instant .unit { color: var(--muted); margin-left: 5px; font-size: 11px; }
+    .text-a { color: var(--phase-a); } .text-b { color: var(--phase-b); } .text-c { color: var(--phase-c); }
+
+    .control-panel { padding: 23px 24px 25px; }
+    .control-panel .panel-header { margin-bottom: 25px; }
+    .control-group { margin: 0 0 26px; }
+    .slider-label { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 12px; }
+    .slider-label label { color: #e4f0fc; font-size: 14px; font-weight: 650; }
+    .number-wrap { display: flex; align-items: center; gap: 7px; }
+    .number-wrap input {
+      width: 85px; border: 1px solid #355067; border-radius: 9px; color: var(--text); background: #0d1a2d;
+      padding: 8px 9px; outline: none; text-align: right; font-size: 13px; font-weight: 670;
+      font-variant-numeric: tabular-nums;
+    }
+    .number-wrap input:focus { border-color: var(--teal); }
+    .number-wrap span { font-size: 12px; color: var(--muted); }
+    input[type="range"] {
+      width: 100%; margin: 0; accent-color: var(--teal);
+      height: 8px; border-radius: 8px; outline: none; cursor: pointer;
+      -webkit-appearance: none; appearance: none;
+      background: linear-gradient(to right, #244259 0%, #426474 50%, #244259 100%);
+    }
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none; appearance: none; width: 19px; height: 19px; border-radius: 50%;
+      background: var(--teal); border: 4px solid #e0fff6; box-shadow: 0 0 0 4px #4de0be26;
+    }
+    input[type="range"]::-moz-range-thumb { width: 12px; height: 12px; border-radius: 50%; background: var(--teal); border: 4px solid #e0fff6; box-shadow: 0 0 0 4px #4de0be26; }
+    .range-labels { display: flex; align-items: center; justify-content: space-between; color: var(--soft); font-size: 11px; margin-top: 9px; }
+    .range-labels span:nth-child(2) { margin-right: 4px; }
+    .control-separator { margin: 5px 0 18px; height: 1px; background: #2c4054; }
+    .quadrant-label { color: #a6bacb; font-weight: 600; font-size: 12px; margin-bottom: 11px; }
+    .quadrants { display: grid; grid-template-columns: repeat(4, 1fr); gap: 9px; }
+    .quad-button { background: #16263a; color: #b8ccdc; font-size: 13px; padding: 10px 0; border-radius: 9px; border: 1px solid #30465c; transition: .16s ease; }
+    .quad-button:hover { background: #233c52; }
+    .quad-button.active { color: #07332e; background: var(--teal); border-color: var(--teal); font-weight: 750; }
+    .constraint { display: flex; align-items: center; gap: 8px; margin-top: 20px; padding: 12px 13px; border-radius: 10px; background: #0d2d32; border: 1px solid #28615a; color: #aef2db; font-size: 12px; line-height: 1.45; }
+    .constraint svg { width: 16px; height: 16px; flex: 0 0 auto; }
+    .constraint strong { color: #eafff5; }
+
+    .vector-panel { padding: 21px 23px 20px; }
+    .vector-panel .panel-header { margin-bottom: 2px; }
+    .vector-top { display: flex; justify-content: space-between; gap: 14px; align-items: center; margin-bottom: 9px; }
+    .angle-readout { font-size: 24px; font-weight: 740; letter-spacing: -.045em; color: var(--teal); white-space: nowrap; }
+    .angle-readout span { display: block; color: var(--muted); font-size: 11px; font-weight: 450; letter-spacing: 0; margin-bottom: 2px; }
+    .vector-stage { width: min(100%, 356px); aspect-ratio: 1; margin: 0 auto; user-select: none; }
+    #vectorSvg { width: 100%; height: 100%; touch-action: none; cursor: crosshair; overflow: visible; }
+    #abcVectorSvg { width: 100%; height: 100%; display: block; overflow: visible; }
+    .abc-vector-panel .panel-header { margin-bottom: 7px; }
+    .abc-vector-panel .vector-stage { max-width: 356px; }
+    .abc-vector-panel .axis-label { fill: #adc4d1; font-size: 13px; font-weight: 620; }
+    .abc-vector-panel .scale-label, #vectorSvg .scale-label { fill: #7691a3; font-size: 10.5px; font-weight: 600; }
+    .abc-vector-panel .vector-key { display: flex; justify-content: center; flex-wrap: wrap; gap: 17px; margin-top: -4px; }
+    .abc-vector-panel .vector-key span { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; color: #bbcedd; }
+    .abc-vector-panel .vector-key i { display: inline-block; width: 14px; height: 3px; border-radius: 5px; }
+    .abc-vector-panel .vector-note { margin: 13px auto 0; color: #93aec1; text-align: center; font-size: 11.5px; line-height: 1.5; }
+    .clip-notice { margin: 13px 0 -2px; color: #ffd199; font-size: 11.5px; line-height: 1.55; }
+    .vector-overlimit { color: #ffd199 !important; }
+    #vectorSvg .axis-label { fill: #adc4d1; font-size: 13px; font-weight: 620; }
+    #vectorSvg .quad-label { fill: #526d7e; font-size: 11px; font-weight: 640; }
+    .vector-hint { text-align: center; color: #8aa4b5; font-size: 11.5px; margin: -6px 0 0; }
+    .model-panel .panel-header { margin-bottom: 18px; }
+    .math-box { border: 1px solid #304357; background: #101e30; border-radius: 12px; padding: 16px 17px; overflow-x: auto; }
+    math { font-family: "Cambria Math", "STIX Two Math", "Noto Sans Math", serif; }
+    .formula { color: #dceafb; font-size: clamp(15px, 1.25vw, 18px); line-height: 2.0; white-space: nowrap; }
+    .formula math { display: inline-block; font-size: 1em; }
+    .math-inline { white-space: nowrap; }
+    .legend math, .instant math, .slider-label math { font-size: 1.1em; }
+    .formula .colored-a { color: var(--phase-a); }
+    .formula .colored-b { color: var(--phase-b); }
+    .formula .colored-c { color: var(--phase-c); }
+    .model-note { margin: 14px 0 0; color: var(--muted); font-size: 12.5px; line-height: 1.65; }
+    .model-note strong { color: #d9e9f6; font-weight: 640; }
+
+    /* Complex phasors are displayed using a cosine reference and a selected peak/RMS base. */
+    .phasors-panel .panel-header { align-items: center; margin-bottom: 19px; }
+    .magnitude-switch { display: inline-flex; gap: 3px; border: 1px solid #344b61; border-radius: 11px; padding: 3px; background: #0d1a2b; flex: 0 0 auto; }
+    .magnitude-switch button { border: 0; border-radius: 8px; background: transparent; color: #9aafc3; padding: 8px 12px; font-size: 12px; font-weight: 660; }
+    .magnitude-switch button[aria-pressed="true"] { background: #31505f; color: #eafff8; box-shadow: inset 0 0 0 1px #618a92; }
+    .phasor-subhead { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin: 16px 0 10px; flex-wrap: wrap; }
+    .phasor-subhead h3 { margin: 0; font-size: 13px; font-weight: 690; color: #e7f2fe; }
+    .phasor-subhead p { margin: 0; font-size: 11.5px; color: var(--muted); }
+    .phasor-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+    .phasor-grid.alpha-beta { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .phasor-card { background: #0b192a; border: 1px solid #2b4155; border-radius: 12px; padding: 13px 14px 15px; min-width: 0; position: relative; overflow: hidden; }
+    .phasor-card::before { content: ''; position: absolute; left: 0; top: 12px; bottom: 12px; width: 3px; border-radius: 2px; background: var(--phasor-accent); }
+    .phasor-card.a { --phasor-accent: var(--phase-a); }
+    .phasor-card.b { --phasor-accent: var(--phase-b); }
+    .phasor-card.c { --phasor-accent: var(--phase-c); }
+    .phasor-card.alpha { --phasor-accent: var(--blue); }
+    .phasor-card.beta { --phasor-accent: #f1b5f1; }
+    .phasor-symbol { font-size: 14px; color: #c8daec; margin: 0 0 11px 3px; }
+    .phasor-symbol math { font-size: 1.1em; }
+    .phasor-reading { display: flex; flex-wrap: wrap; gap: 5px 6px; align-items: baseline; }
+    .phasor-magnitude { font-size: clamp(17px, 1.55vw, 22px); font-weight: 730; color: var(--text); letter-spacing: -.035em; }
+    .phasor-unit { font-size: 11px; color: #9cb4c8; }
+    .phasor-angle { font-size: clamp(16px, 1.55vw, 22px); font-weight: 710; letter-spacing: -.035em; color: var(--phasor-accent); white-space: nowrap; }
+    .phasor-note { margin: 9px 0 0; font-size: 11.5px; line-height: 1.5; color: #91a8bd; }
+    .space-row { margin-top: 17px; padding: 15px 16px 16px; background: linear-gradient(115deg, #16314480, #0b1b2e); border: 1px solid #315067; border-radius: 12px; }
+    .space-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 11px; }
+    .space-header h3 { margin: 0; color: #dff3fa; font-size: 13px; }
+    .space-header p { margin: 0; color: #90b3c4; font-size: 11.5px; }
+    .space-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+    .space-measure .space-label { display: block; color: #9ab4c6; margin-bottom: 6px; font-size: 12px; }
+    .space-label math { font-size: 1.08em; }
+    .space-measure strong { color: #e5f8ff; font-size: clamp(15px, 1.55vw, 20px); white-space: nowrap; letter-spacing: -.03em; }
+    .space-measure strong.signed-alpha { color: #83c5ff; }
+    .space-measure strong.signed-beta { color: #efbdf9; }
+    .space-measure .measure-unit { font-size: 11px; font-weight: 450; color: #abc3d2; margin-left: 4px; }
+    .space-footnote { border-top: 1px solid #2d495e; margin: 12px 0 0; padding-top: 11px; font-size: 11.5px; line-height: 1.7; color: #a9becf; }
+    .space-footnote math { font-size: 1.04em; }
+    @media (max-width: 690px) {
+      .phasors-panel .panel-header { gap: 12px; }
+      .phasor-card { padding: 12px 10px 13px; }
+      .phasor-magnitude { font-size: 17px; }
+      .phasor-angle { font-size: 16px; }
+      .space-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 13px 8px; }
+      .space-row { padding: 13px; }
+    }
+
+
+    /* Component edit mode and zero-sequence controls. */
+    .edit-mode { padding: 14px; border: 1px solid #355068; border-radius: 13px; margin: -7px 0 26px; background: #0e2032; }
+    .edit-mode-heading { color: #d9ecf7; font-size: 12px; font-weight: 700; margin-bottom: 10px; }
+    .edit-mode-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+    .edit-mode-buttons button { color: #abc2d2; background: #1a2b3c; padding: 11px 8px; border-radius: 9px; border: 1px solid #395265; font-size: 12px; font-weight: 640; }
+    .edit-mode-buttons button[aria-pressed="true"] { color: #082c31; background: var(--teal); border-color: var(--teal); }
+    .edit-mode-description { color: #97aebe; font-size: 11.5px; line-height: 1.6; margin: 12px 0 0; min-height: 36px; }
+    .component-note { border: 1px solid #375369; background: #112637; border-radius: 10px; padding: 11px 13px; color: #adc3d3; font-size: 11.5px; line-height: 1.55; margin: 0 0 20px; }
+    .component-note strong { color: var(--teal); }
+    .control-zero { border-top: 1px solid #2b4054; padding-top: 21px; }
+    .model-matrix { text-align: center; padding: 19px 12px 15px; }
+    .model-matrix math { display: inline-block; font-size: clamp(15px, 1.2vw, 19px); vertical-align: middle; }
+    .park-equation { display: flex; gap: 10px; align-items: center; justify-content: center; width: max-content; min-width: 100%; }
+    .matrix-brackets { display: inline-flex; align-items: center; padding: 4px 13px; position: relative; flex: 0 0 auto; }
+    .matrix-brackets::before, .matrix-brackets::after { position: absolute; top: 0; bottom: 0; width: 8px; content: ''; border-color: #dceafb; border-style: solid; }
+    .matrix-brackets::before { left: 0; border-width: 1.6px 0 1.6px 1.6px; }
+    .matrix-brackets::after { right: 0; border-width: 1.6px 1.6px 1.6px 0; }
+    .matrix-brackets math { margin: 0; }
+    .park-equals { font-size: 23px; color: #e0edf9; margin: 0 1px; }
+    .matrix-scroll-hint { display: none; font-size: 11px; color: #95b0c3; text-align: left; padding-top: 8px; }
+    .math-caption { margin: 13px 0 0; font-size: 12px; color: #a8bfd1; text-align: center; }
+    .model-note .formula-inline { white-space: nowrap; }
+    .metric-value .check { display: none; }
+    .metric .metric-value strong { color: var(--teal); }
+    @media (max-width:690px) {
+      .model-matrix math { font-size: 17px; }
+      .model-matrix { text-align: left; }
+      .matrix-scroll-hint { display: block; }
+      .edit-mode-buttons button { padding: 10px 6px; }
+    }
+
+    footer { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; color: #778fa5; font-size: 11.5px; margin-top: 25px; }
+    footer strong { color: #b5c8d9; font-weight: 550; }
+    .sr-only { position: absolute; height: 1px; width: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+
+    @media(max-width: 1050px) {
+      .workspace { grid-template-columns: minmax(0, 1fr); }
+      .side-column { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: stretch; }
+      .control-panel, .vector-panel { min-width: 0; }
+      .vector-stage { width: min(100%, 330px); }
+      .formula { font-size: 17px; }
+    }
+    @media(max-width: 690px) {
+      .app { padding: 23px 15px 35px; }
+      .topbar { align-items: flex-start; flex-direction: column; }
+      .toolbar { width: 100%; justify-content: space-between; }
+      .metrics { gap: 8px; }
+      .metric { padding: 13px 11px; min-height: 83px; }
+      .metric-title { font-size: 10px; min-height: 26px; }
+      .metric-value { font-size: 18px; }
+      .metric-value small { display: inline; font-size: 10px; margin-left: 2px; }
+      .metric-value .check { display: none; }
+      .side-column { grid-template-columns: 1fr; }
+      .panel-padding, .control-panel, .vector-panel { padding: 17px; }
+      .panel-header { flex-wrap: wrap; }
+      #waveCanvas { height: 325px; }
+      .chart-wrapper { margin: 0 -8px; }
+      .instant-values { gap: 6px; }
+      .instant { padding: 11px 8px; }
+      .instant .voltage { font-size: 18px; }
+      .legend { gap: 10px; }
+      .formula { font-size: 15px; }
+      .model-panel .math-box { padding: 13px; }
+    }
+    @media(prefers-reduced-motion: reduce) {
+      .toolbar-button, .quad-button { transition: none; }
+    }
+
+    /* v6: keep both vector diagrams and the waveform visible beside the d/q controls. */
+    .app { width: min(1600px, 100%); padding: 24px 26px 46px; }
+    .topbar { margin-bottom: 17px; }
+    .primary-controls { padding: 20px 23px 13px; margin-bottom: 16px; }
+    .primary-control-grid { display: grid; grid-template-columns: minmax(250px, 1.02fr) repeat(2, minmax(230px, 1fr)); align-items: center; gap: 27px; }
+    .control-title-line { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 13px; }
+    .control-title-line h2 { margin: 0; font-size: 16px; font-weight: 720; letter-spacing: -.025em; }
+    .live-dot { color: #9ceada; font-size: 11px; border-radius: 20px; padding: 4px 8px; background: #153838; border: 1px solid #25675a; display: inline-flex; align-items: center; gap: 6px; }
+    .live-dot > span { width: 6px; height: 6px; background: #54e0c6; border-radius: 50%; }
+    .mode-area .edit-mode-buttons { gap: 7px; }
+    .mode-area .edit-mode-buttons button { padding: 10px 7px; }
+    .mode-area .edit-mode-description { margin: 9px 0 0; min-height: 0; line-height: 1.4; font-size: 11px; }
+    .primary-control-grid .slider-label { margin-bottom: 22px; }
+    .primary-control-grid .range-labels { margin-top: 13px; }
+    .primary-control-grid .number-wrap input { width: 78px; }
+    .control-foot { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px 17px; margin-top: 10px; }
+    .control-foot .component-note { margin: 0; padding: 7px 11px; line-height: 1.3; }
+    .control-foot-note { color: #95afc0; font-size: 11px; line-height: 1.45; }
+    .visual-grid { display: grid; grid-template-columns: minmax(245px,1fr) minmax(245px,1fr) minmax(390px,1.56fr); align-items: stretch; gap: 15px; }
+    .visual-grid .panel { min-width: 0; }
+    .visual-grid .vector-panel { padding: 17px 17px 14px; display: flex; flex-direction: column; justify-content: space-between; }
+    .visual-grid .vector-panel .panel-header { margin: 0; }
+    .visual-grid .vector-top { align-items: flex-start; gap: 6px; }
+    .visual-grid .vector-top .panel-header { margin: 0; }
+    .visual-grid .panel-header h2 { font-size: 16px; margin-bottom: 5px; }
+    .visual-grid .panel-header p { font-size: 11px; line-height: 1.5; }
+    .visual-grid .vector-top .angle-readout { font-size: 19px; }
+    .visual-grid .vector-top .angle-readout span { font-size: 10px; }
+    .visual-grid .vector-stage { width: min(100%, 332px); max-width: 332px; flex: 0 0 auto; }
+    .visual-grid .vector-panel .vector-stage { margin: 4px auto; }
+    .visual-grid .abc-vector-panel .vector-stage { max-width: 332px; }
+    .visual-grid .vector-hint, .visual-grid .vector-note { font-size: 10.5px; line-height: 1.45; margin: 4px auto 0; }
+    .visual-grid .abc-vector-panel .vector-key { margin-top: 0; gap: 12px; }
+    .visual-grid .abc-vector-panel .vector-key span { font-size: 11px; }
+    .visual-grid .wave-panel { padding: 17px 18px 12px; display: flex; flex-direction: column; }
+    .visual-grid .wave-panel .panel-header { margin-bottom: 18px; }
+    .visual-grid .wave-panel .legend { margin-bottom: 10px; }
+    .visual-grid .chart-wrapper { flex: 1 1 auto; margin: 0 -6px; min-height: 0; }
+    .visual-grid #waveCanvas { width: 100%; height: 338px; cursor: default; touch-action: auto; }
+    .visual-grid .legend-item { gap: 5px; }
+    .visual-grid .legend { gap: 10px 17px; }
+    .visual-grid .legend-swatch { width: 14px; }
+    .visual-grid .mini-tag { padding: 5px 7px; font-size: 10px; }
+    .visual-grid .clip-notice { margin-top: 4px; }
+    .secondary-heading { margin: 26px 0 12px; }
+    .secondary-heading h2 { margin: 0 0 4px; font-size: 18px; font-weight: 710; }
+    .secondary-heading p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
+    .metrics { gap: 12px; margin-bottom: 15px; }
+    .metric { min-height: 78px; padding: 13px 17px; }
+    .metric-value { font-size: 23px; }
+    .secondary-grid { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(315px, .8fr); align-items: start; gap: 15px; }
+    .secondary-grid .control-zero { margin-top: 4px; }
+    .secondary-grid .control-group { margin-bottom: 14px; }
+    .secondary-grid .panel-header { margin-bottom: 17px; }
+    .secondary-grid .phasor-grid { gap: 9px; }
+    .model-panel { margin-top: 15px; }
+    .model-panel .model-matrix { padding-top: 20px; }
+    @media (max-width: 1140px) {
+      .primary-control-grid { gap: 16px; grid-template-columns: minmax(245px,.95fr) repeat(2, minmax(200px,1fr)); }
+      .visual-grid { grid-template-columns: repeat(2, minmax(0,1fr)); }
+      .visual-grid .wave-panel { grid-column: 1 / -1; }
+      .visual-grid .vector-stage { width: min(100%, 318px); }
+      .visual-grid #waveCanvas { height: 290px; }
+    }
+    @media (max-width: 800px) {
+      .primary-control-grid { grid-template-columns: repeat(2,minmax(0,1fr)); row-gap: 21px; }
+      .mode-area { grid-column: 1 / -1; }
+      .secondary-grid { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 600px) {
+      .app { padding: 18px 12px 28px; }
+      .topbar { margin-bottom: 15px; }
+      .primary-controls { padding: 16px 14px 12px; }
+      .primary-control-grid { grid-template-columns: 1fr; row-gap: 17px; }
+      .mode-area { grid-column: auto; }
+      .primary-control-grid .slider-label { margin-bottom: 17px; }
+      .visual-grid { grid-template-columns: 1fr; gap: 12px; }
+      .visual-grid .wave-panel { grid-column: auto; }
+      .visual-grid .vector-stage { width: min(100%,330px); }
+      .visual-grid .vector-panel { padding: 15px; }
+      .visual-grid .wave-panel { padding: 16px 13px 11px; }
+      .visual-grid #waveCanvas { height: 300px; }
+      .visual-grid .mini-tag { white-space: normal; }
+      .secondary-heading { margin-top: 23px; }
+      .metrics { gap: 7px; }
+      .metric { padding: 11px 9px; min-height: 75px; }
+      .metric-title { font-size: 10px; }
+      .metric-value { font-size: 18px; }
+      .secondary-grid .phasor-grid { grid-template-columns: 1fr; }
+      .secondary-grid .phasor-grid.alpha-beta { grid-template-columns: 1fr 1fr; }
+    }
+
+  </style>
+</head>
+<body>
+  <main class="app">
+    <header class="topbar">
+      <div class="identity">
+        <div class="logo-mark" aria-hidden="true">∿</div>
+        <div>
+          <h1>dq <span style="color:var(--teal)">→</span> abc Explorer</h1>
+          <p class="subtitle">Inverse Park transformation · Real-time dq control and three coordinated views</p>
+        </div>
+      </div>
+      <div class="toolbar">
+        <span class="status-chip"><span class="pulse" aria-hidden="true"></span> 60 Hz reference frame</span>
+        <button class="toolbar-button" id="resetButton" type="button" title="Restore independent mode, vd = 1, vq = v0 = 0">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg>
+          Reset
+        </button>
+      </div>
+    </header>
+
+
+      <section class="panel primary-controls" aria-labelledby="controlsTitle">
+        <div class="primary-control-grid">
+          <div class="mode-area">
+            <div class="control-title-line"><h2 id="controlsTitle">Adjust <math xmlns="http://www.w3.org/1998/Math/MathML"><mrow><msub><mi>v</mi><mi>d</mi></msub><mo>,</mo><msub><mi>v</mi><mi>q</mi></msub></mrow></math></h2><span class="live-dot"><span aria-hidden="true"></span> Live</span></div>
+            <div class="edit-mode-buttons" role="group" aria-label="Voltage component control mode">
+              <button id="independentButton" type="button" aria-pressed="true">Independent <i>dq</i></button>
+              <button id="fixedButton" type="button" aria-pressed="false">Fixed 1 pu AC</button>
+            </div>
+            <p id="modeExplainer" class="edit-mode-description">Adjust either dq component freely; the other stays unchanged.</p>
+          </div>
+          <div class="slider-area">
+            <div class="slider-label"><label for="vdRange">d-axis voltage · <math xmlns="http://www.w3.org/1998/Math/MathML"><msub><mi>v</mi><mi>d</mi></msub></math></label><div class="number-wrap"><input id="vdNumber" type="number" min="-20" max="20" step="0.001" value="1.000" aria-label="d-axis voltage numeric value"><span>pu</span></div></div>
+            <input id="vdRange" type="range" min="-3" max="3" step="0.001" value="1" aria-label="d-axis voltage slider">
+            <div class="range-labels"><span id="dMinLabel">−3.0</span><span>0</span><span id="dMaxLabel">+3.0</span></div>
+          </div>
+          <div class="slider-area">
+            <div class="slider-label"><label for="vqRange">q-axis voltage · <math xmlns="http://www.w3.org/1998/Math/MathML"><msub><mi>v</mi><mi>q</mi></msub></math></label><div class="number-wrap"><input id="vqNumber" type="number" min="-20" max="20" step="0.001" value="0.000" aria-label="q-axis voltage numeric value"><span>pu</span></div></div>
+            <input id="vqRange" type="range" min="-3" max="3" step="0.001" value="0" aria-label="q-axis voltage slider">
+            <div class="range-labels"><span id="qMinLabel">−3.0</span><span>0</span><span id="qMaxLabel">+3.0</span></div>
+          </div>
+        </div>
+        <div class="control-foot">
+          <div class="component-note" id="acModeNote" role="status" aria-live="off">AC phase peak: <strong>1.000 pu</strong> · independent dq control.</div>
+          <span class="control-foot-note">Drag the sliders to update all three panels immediately. <span class="math-quad">|<i>V</i>| ≤ 1.5 pu is the displayed scale, not a voltage limit.</span></span>
+        </div>
+      </section>
+
+      <div class="visual-grid" aria-label="Live dq and abc voltage diagrams">
+        <section class="panel vector-panel" aria-labelledby="vectorTitle">
+          <div class="vector-top">
+            <div class="panel-header">
+              <div>
+                <h2 id="vectorTitle"><math xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>d</mi><mi>q</mi></mrow></math> voltage vector</h2>
+                <p>Drag to change magnitude and angle; in fixed mode, only the angle changes.</p>
+              </div>
+            </div>
+            <div class="angle-readout"><span>Phase angle <math xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>φ</mi></mrow></math></span><output id="phiValue">0.0°</output></div>
+          </div>
+          <div class="vector-stage">
+            <svg id="vectorSvg" viewBox="0 0 360 360" tabindex="0" role="slider" aria-label="dq vector phase angle in degrees; use left and right arrow keys to rotate" aria-valuemin="0" aria-valuemax="360" aria-valuenow="0" aria-valuetext="0 degrees">
+              <defs>
+                <filter id="arrowGlow" x="-80%" y="-80%" width="260%" height="260%"><feGaussianBlur stdDeviation="5"/></filter>
+                <radialGradient id="vectorFill"><stop offset="0%" stop-color="#214f58" stop-opacity=".36"/><stop offset="100%" stop-color="#172b3d" stop-opacity=".10"/></radialGradient>
+              </defs>
+              <circle cx="180" cy="180" r="133" fill="url(#vectorFill)" stroke="#465d70" stroke-width="1.35"/>
+              <circle cx="180" cy="180" r="44.333" fill="none" stroke="#3f566b" stroke-width="1" stroke-dasharray="3 6"/>
+              <circle id="unitCircle" cx="180" cy="180" r="88.667" fill="none" stroke="#54e0c6" stroke-opacity=".60" stroke-width="1.5" stroke-dasharray="4 7"/>
+              <text x="184" y="132" class="scale-label">0.5</text>
+              <text x="184" y="87" class="scale-label">1.0</text>
+              <text x="184" y="43" class="scale-label">1.5 pu</text>
+              
+              <line x1="20" y1="180" x2="340" y2="180" stroke="#547086" stroke-width="1.3"/>
+              <line x1="180" y1="20" x2="180" y2="340" stroke="#547086" stroke-width="1.3"/>
+              <polygon points="340,180 331,175 331,185" fill="#7b97ac"/><polygon points="180,20 175,29 185,29" fill="#7b97ac"/>
+              <text x="336" y="166" text-anchor="end" class="axis-label">+d</text>
+              <text x="194" y="31" class="axis-label">+q</text>
+              <text x="24" y="166" class="axis-label">−d</text>
+              <text x="193" y="334" class="axis-label">−q</text>
+              <text x="249" y="106" text-anchor="middle" class="quad-label">Q I</text>
+              <text x="111" y="106" text-anchor="middle" class="quad-label">Q II</text>
+              <text x="111" y="268" text-anchor="middle" class="quad-label">Q III</text>
+              <text x="249" y="268" text-anchor="middle" class="quad-label">Q IV</text>
+              <circle cx="180" cy="180" r="3.6" fill="#a6c6d3"/>
+              <path id="angleArc" d="" fill="none" stroke="#90c9e1" stroke-width="2" stroke-linecap="round"/>
+              <line id="projectionX" x1="180" y1="180" x2="313" y2="180" stroke="#6ebdb2" stroke-width="1.2" stroke-dasharray="5 5"/>
+              <line id="projectionY" x1="313" y1="180" x2="313" y2="180" stroke="#6ebdb2" stroke-width="1.2" stroke-dasharray="5 5"/>
+              <line id="vectorGlow" x1="180" y1="180" x2="313" y2="180" stroke="#54e0c6" stroke-width="7" opacity=".6" filter="url(#arrowGlow)" stroke-linecap="round"/>
+              <line id="vectorArrow" x1="180" y1="180" x2="313" y2="180" stroke="#54e0c6" stroke-width="3.5" stroke-linecap="round"/>
+              <polygon id="arrowHead" points="314,180 297,173 297,187" fill="#54e0c6"/>
+              <circle id="tipCircle" cx="313" cy="180" r="8" fill="#d1fff0" stroke="#54e0c6" stroke-width="4"/>
+            </svg>
+          </div>
+          <p class="vector-hint" id="vectorScaleNote">Fixed 0–1.5 pu · Rings at 0.5, 1.0 and 1.5 pu · Drag to change the vector</p>
+        </section>
+        <section class="panel vector-panel abc-vector-panel" aria-labelledby="abcVectorTitle">
+          <div class="panel-header">
+            <div>
+              <h2 id="abcVectorTitle"><math xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>a</mi><mi>b</mi><mi>c</mi></mrow></math> voltage vectors</h2>
+              <p>Three fundamental phasors in the complex plane, 120° apart. Uses the selected Peak/RMS basis.</p>
+            </div>
+            <span class="mini-tag">0–1.5 pu</span>
+          </div>
+          <div class="vector-stage">
+            <svg id="abcVectorSvg" viewBox="0 0 360 360" role="img" aria-label="Three phase A B and C voltage phasors, at 120 degrees separation, fixed magnitude scale zero to 1.5 pu">
+              <defs>
+                <radialGradient id="abcVectorFill"><stop offset="0%" stop-color="#1d3a4b" stop-opacity=".34"/><stop offset="100%" stop-color="#15283b" stop-opacity=".08"/></radialGradient>
+              </defs>
+              <circle cx="180" cy="180" r="133" fill="url(#abcVectorFill)" stroke="#465d70" stroke-width="1.35"/>
+              <circle cx="180" cy="180" r="44.333" fill="none" stroke="#3f566b" stroke-width="1" stroke-dasharray="3 6"/>
+              <circle cx="180" cy="180" r="88.667" fill="none" stroke="#54e0c6" stroke-opacity=".6" stroke-width="1.5" stroke-dasharray="4 7"/>
+              <line x1="22" y1="180" x2="338" y2="180" stroke="#547086" stroke-width="1.3"/>
+              <line x1="180" y1="22" x2="180" y2="338" stroke="#547086" stroke-width="1.3"/>
+              <polygon points="338,180 329,175 329,185" fill="#7b97ac"/>
+              <polygon points="180,22 175,31 185,31" fill="#7b97ac"/>
+              <text x="333" y="167" text-anchor="end" class="axis-label">+Re</text>
+              <text x="193" y="31" class="axis-label">+Im</text>
+              <text x="23" y="168" class="axis-label">−Re</text>
+              <text x="193" y="335" class="axis-label">−Im</text>
+              <text x="184" y="132" class="scale-label">0.5</text>
+              <text x="184" y="87" class="scale-label">1.0</text>
+              <text x="184" y="43" class="scale-label">1.5 pu</text>
+              <g class="abc-arrow" data-phase="a">
+                <line id="abcLineA" x1="180" y1="180" x2="260" y2="180" stroke="#4ed5bf" stroke-width="3.5" stroke-linecap="round"/>
+                <polygon id="abcHeadA" points="260,180 245,173 245,187" fill="#4ed5bf"/>
+                <text id="abcLabelA" x="281" y="175" fill="#4ed5bf" font-size="16" font-weight="700"><tspan font-style="italic">V</tspan><tspan font-size="10" baseline-shift="sub">a</tspan></text>
+              </g>
+              <g class="abc-arrow" data-phase="b">
+                <line id="abcLineB" x1="180" y1="180" x2="140" y2="245" stroke="#a59aff" stroke-width="3.5" stroke-linecap="round"/>
+                <polygon id="abcHeadB" points="140,245 149,232 136,230" fill="#a59aff"/>
+                <text id="abcLabelB" x="116" y="260" fill="#a59aff" font-size="16" font-weight="700"><tspan font-style="italic">V</tspan><tspan font-size="10" baseline-shift="sub">b</tspan></text>
+              </g>
+              <g class="abc-arrow" data-phase="c">
+                <line id="abcLineC" x1="180" y1="180" x2="140" y2="115" stroke="#ffb56d" stroke-width="3.5" stroke-linecap="round"/>
+                <polygon id="abcHeadC" points="140,115 136,130 149,128" fill="#ffb56d"/>
+                <text id="abcLabelC" x="116" y="105" fill="#ffb56d" font-size="16" font-weight="700"><tspan font-style="italic">V</tspan><tspan font-size="10" baseline-shift="sub">c</tspan></text>
+              </g>
+              <circle cx="180" cy="180" r="3.6" fill="#a6c6d3"/>
+            </svg>
+          </div>
+          <div class="vector-key" aria-label="Phase colors">
+            <span><i style="background:var(--phase-a)"></i><math xmlns="http://www.w3.org/1998/Math/MathML"><msub><mi>V</mi><mi>a</mi></msub></math></span>
+            <span><i style="background:var(--phase-b)"></i><math xmlns="http://www.w3.org/1998/Math/MathML"><msub><mi>V</mi><mi>b</mi></msub></math></span>
+            <span><i style="background:var(--phase-c)"></i><math xmlns="http://www.w3.org/1998/Math/MathML"><msub><mi>V</mi><mi>c</mi></msub></math></span>
+          </div>
+          <p class="vector-note" id="abcVectorNote">Fixed radial scale 0–1.5 pu · Fundamental phasors (peak values) · The DC zero-sequence component is excluded.</p>
+        </section>
+        <section class="panel panel-padding wave-panel" aria-labelledby="waveTitle">
+          <div class="panel-header">
+            <div>
+              <h2 id="waveTitle">Three-phase waveform</h2>
+              <p>The three phase curves respond immediately to changes in the <i>d</i> and <i>q</i> components.</p>
+            </div>
+            <span class="mini-tag">±1.5 pu · 60 Hz</span>
+          </div>
+          <div class="legend" aria-label="Waveform colors">
+            <div class="legend-item"><span class="legend-swatch" style="background:var(--phase-a)"></span><math xmlns="http://www.w3.org/1998/Math/MathML"><mrow><msub><mi>v</mi><mi>a</mi></msub><mo>(</mo><mi>t</mi><mo>)</mo></mrow></math></div>
+            <div class="legend-item"><span class="legend-swatch" style="background:var(--phase-b)"></span><math xmlns="http://www.w3.org/1998/Math/MathML"><mrow><msub><mi>v</mi><mi>b</mi></msub><mo>(</mo><mi>t</mi><mo>)</mo></mrow></math></div>
+            <div class="legend-item"><span class="legend-swatch" style="background:var(--phase-c)"></span><math xmlns="http://www.w3.org/1998/Math/MathML"><mrow><msub><mi>v</mi><mi>c</mi></msub><mo>(</mo><mi>t</mi><mo>)</mo></mrow></math></div>
+          </div>
+          <p class="clip-notice" id="waveClipNote" role="status" hidden></p>
+          <div class="chart-wrapper">
+            <canvas id="waveCanvas" role="img" aria-label="Three-phase voltage waveforms at 60 hertz. The horizontal axis covers two cycles and the vertical axis is fixed from minus 1.5 to plus 1.5 per unit."></canvas>
+          </div>
+        </section>
+      </div>
+
+      <div class="secondary-heading">
+        <div><h2>Detailed analysis</h2><p>Phasor values, other controls and the mathematical model are kept below the live diagrams.</p></div>
+      </div>
+    <section class="metrics" aria-label="Calculated voltage properties">
+      <div class="metric"><div class="metric-title">Fundamental AC peak</div><div class="metric-value"><span id="peakMetric">1.000</span> <small>pu</small></div></div>
+      <div class="metric"><div class="metric-title">Fundamental phase spacing</div><div class="metric-value" id="spacingMetric">120°</div></div>
+      <div class="metric"><div class="metric-title">Common-mode DC offset</div><div class="metric-value"><span id="zeroMetric">0.000</span> <small>pu</small></div></div>
+    </section>
+      <div class="secondary-grid">
+        <section class="panel panel-padding phasors-panel" aria-labelledby="phasorsTitle">
+          <div class="panel-header">
+            <div>
+              <h2 id="phasorsTitle">Voltage phasors</h2>
+              <p>Cosine-reference phasors · positive <math xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>a</mi><mi>b</mi><mi>c</mi></mrow></math> sequence · signed angles</p>
+            </div>
+            <div class="magnitude-switch" role="group" aria-label="Phasor magnitude basis">
+              <button type="button" id="peakButton" aria-pressed="true" title="Display peak amplitude of the fundamental">Peak</button>
+              <button type="button" id="rmsButton" aria-pressed="false" title="Display RMS magnitude of the sinusoidal fundamental">RMS</button>
+            </div>
+          </div>
+
+          <div class="phasor-subhead">
+            <h3>Three-phase phasors · <math xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>a</mi><mi>b</mi><mi>c</mi></mrow></math></h3>
+            <p>120° fundamental separation when AC magnitude is nonzero</p>
+          </div>
+          <div class="phasor-grid" aria-label="ABC voltage phasors">
+            <div class="phasor-card a">
+              <div class="phasor-symbol"><math xmlns="http://www.w3.org/1998/Math/MathML"><msub><mi>V</mi><mi>a</mi></msub></math></div>
+              <div class="phasor-reading"><span class="phasor-magnitude" id="phasorAMag">1.000</span><span class="phasor-unit">pu</span><span class="phasor-angle" id="phasorAAng">∠ +0.0°</span></div>
+            </div>
+            <div class="phasor-card b">
+              <div class="phasor-symbol"><math xmlns="http://www.w3.org/1998/Math/MathML"><msub><mi>V</mi><mi>b</mi></msub></math></div>
+              <div class="phasor-reading"><span class="phasor-magnitude" id="phasorBMag">1.000</span><span class="phasor-unit">pu</span><span class="phasor-angle" id="phasorBAng">∠ −120.0°</span></div>
+            </div>
+            <div class="phasor-card c">
+              <div class="phasor-symbol"><math xmlns="http://www.w3.org/1998/Math/MathML"><msub><mi>V</mi><mi>c</mi></msub></math></div>
+              <div class="phasor-reading"><span class="phasor-magnitude" id="phasorCMag">1.000</span><span class="phasor-unit">pu</span><span class="phasor-angle" id="phasorCAng">∠ +120.0°</span></div>
+            </div>
+          </div>
+
+          <div class="phasor-subhead" style="margin-top:21px">
+            <h3>Stationary-frame phasors · <math xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>α</mi><mi>β</mi></mrow></math></h3>
+            <p>Amplitude-invariant Clarke transform · 90° apart</p>
+          </div>
+          <div class="phasor-grid alpha-beta" aria-label="Alpha-beta voltage phasors">
+            <div class="phasor-card alpha">
+              <div class="phasor-symbol"><math xmlns="http://www.w3.org/1998/Math/MathML"><msub><mi>V</mi><mi>α</mi></msub></math></div>
+              <div class="phasor-reading"><span class="phasor-magnitude" id="phasorAlphaMag">1.000</span><span class="phasor-unit">pu</span><span class="phasor-angle" id="phasorAlphaAng">∠ +0.0°</span></div>
+            </div>
+            <div class="phasor-card beta">
+              <div class="phasor-symbol"><math xmlns="http://www.w3.org/1998/Math/MathML"><msub><mi>V</mi><mi>β</mi></msub></math></div>
+              <div class="phasor-reading"><span class="phasor-magnitude" id="phasorBetaMag">1.000</span><span class="phasor-unit">pu</span><span class="phasor-angle" id="phasorBetaAng">∠ −90.0°</span></div>
+            </div>
+          </div>
+
+          <p class="phasor-note" id="basisNote">Peak fundamental phasors: 1.000 pu each (RMS = 0.707 pu on the same base).</p>
+        </section>
+
+      <section class="panel panel-padding advanced-panel" aria-labelledby="advancedTitle">
+        <div class="panel-header">
+          <div><h2 id="advancedTitle">Additional controls</h2><p>Zero-sequence offset and direct quadrant selection.</p></div>
+        </div>
+        <div class="control-group control-zero">
+          <div class="slider-label"><label for="v0Range">Zero-sequence DC · <math xmlns="http://www.w3.org/1998/Math/MathML"><msub><mi>v</mi><mn>0</mn></msub></math></label><div class="number-wrap"><input id="v0Number" type="number" min="-20" max="20" step="0.001" value="0.000" aria-label="zero-sequence voltage numeric value"><span>pu</span></div></div>
+          <input id="v0Range" type="range" min="-2" max="2" step="0.001" value="0" aria-label="zero-sequence voltage slider">
+          <div class="range-labels"><span id="zeroMinLabel">−2.0</span><span>0</span><span id="zeroMaxLabel">+2.0</span></div>
+          <p class="phasor-note">Adds the same DC offset to all three phase-to-neutral voltages; the fundamental phasors are unchanged.</p>
+        </div>
+        <div class="control-separator" role="presentation"></div>
+        <div class="quadrant-label">Select a <math xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>d</mi><mi>q</mi></mrow></math> vector quadrant</div>
+        <div class="quadrants" role="group" aria-label="Select dq quadrant">
+          <button id="quad1" class="quad-button active" type="button">Q I</button>
+          <button id="quad2" class="quad-button" type="button">Q II</button>
+          <button id="quad3" class="quad-button" type="button">Q III</button>
+          <button id="quad4" class="quad-button" type="button">Q IV</button>
+        </div>
+        <p class="phasor-note">You can also drag the arrow in the <i>dq</i> vector panel above.</p>
+      </section>
+      </div>
+        <section class="panel panel-padding model-panel" aria-labelledby="modelTitle">
+          <div class="panel-header">
+            <div>
+              <h2 id="modelTitle">Inverse Park transformation</h2>
+              <p>Amplitude-invariant conversion from rotating <i>dq0</i> coordinates to stationary <i>abc</i> phase voltages.</p>
+            </div>
+            <span class="mini-tag">dq0 → abc</span>
+          </div>
+          <div class="math-box model-matrix" role="group" aria-label="Inverse Park matrix transformation from vd, vq, v zero to va, vb, vc">
+            <div class="park-equation" role="math" aria-label="The abc voltage column vector equals the inverse Park three by three matrix times the dq0 voltage column vector"><div class="matrix-brackets vector-column"><math xmlns="http://www.w3.org/1998/Math/MathML"><mtable columnalign="center" columnspacing="0.45em" rowspacing="0.4em"><mtr><mtd><msub><mi>v</mi><mi>a</mi></msub></mtd></mtr><mtr><mtd><msub><mi>v</mi><mi>b</mi></msub></mtd></mtr><mtr><mtd><msub><mi>v</mi><mi>c</mi></msub></mtd></mtr></mtable></math></div><span class="park-equals">=</span><div class="matrix-brackets coefficients"><math xmlns="http://www.w3.org/1998/Math/MathML"><mtable columnalign="center" columnspacing="0.65em" rowspacing="0.4em"><mtr><mtd><mrow><mi mathvariant="normal">cos</mi><mo>(</mo><mrow><mi>θ</mi></mrow><mo>)</mo></mrow></mtd><mtd><mrow><mo>−</mo><mrow><mi mathvariant="normal">sin</mi><mo>(</mo><mrow><mi>θ</mi></mrow><mo>)</mo></mrow></mrow></mtd><mtd><mn>1</mn></mtd></mtr><mtr><mtd><mrow><mi mathvariant="normal">cos</mi><mo>(</mo><mrow><mi>θ</mi><mo>−</mo><mfrac><mrow><mn>2</mn><mi>π</mi></mrow><mn>3</mn></mfrac></mrow><mo>)</mo></mrow></mtd><mtd><mrow><mo>−</mo><mrow><mi mathvariant="normal">sin</mi><mo>(</mo><mrow><mi>θ</mi><mo>−</mo><mfrac><mrow><mn>2</mn><mi>π</mi></mrow><mn>3</mn></mfrac></mrow><mo>)</mo></mrow></mrow></mtd><mtd><mn>1</mn></mtd></mtr><mtr><mtd><mrow><mi mathvariant="normal">cos</mi><mo>(</mo><mrow><mi>θ</mi><mo>+</mo><mfrac><mrow><mn>2</mn><mi>π</mi></mrow><mn>3</mn></mfrac></mrow><mo>)</mo></mrow></mtd><mtd><mrow><mo>−</mo><mrow><mi mathvariant="normal">sin</mi><mo>(</mo><mrow><mi>θ</mi><mo>+</mo><mfrac><mrow><mn>2</mn><mi>π</mi></mrow><mn>3</mn></mfrac></mrow><mo>)</mo></mrow></mrow></mtd><mtd><mn>1</mn></mtd></mtr></mtable></math></div><div class="matrix-brackets vector-column"><math xmlns="http://www.w3.org/1998/Math/MathML"><mtable columnalign="center" columnspacing="0.45em" rowspacing="0.4em"><mtr><mtd><msub><mi>v</mi><mi>d</mi></msub></mtd></mtr><mtr><mtd><msub><mi>v</mi><mi>q</mi></msub></mtd></mtr><mtr><mtd><msub><mi>v</mi><mn>0</mn></msub></mtd></mtr></mtable></math></div></div>
+            <div class="matrix-scroll-hint">Swipe horizontally to see the complete matrix →</div>
+            <div class="math-caption"><math xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>θ</mi><mo>=</mo><mn>2</mn><mi>π</mi><mi>f</mi><mi>t</mi><mspace width="0.8em"/><mi>f</mi><mo>=</mo><mn>60</mn><mspace width="0.2em"/><mtext>Hz</mtext></mrow></math></div>
+          </div>
+          <p class="model-note"><strong>Fundamental amplitude:</strong> <math xmlns="http://www.w3.org/1998/Math/MathML"><mrow><msub><mi>V</mi><mtext>peak</mtext></msub><mo>=</mo><msqrt><mrow><msup><msub><mi>v</mi><mi>d</mi></msub><mn>2</mn></msup><mo>+</mo><msup><msub><mi>v</mi><mi>q</mi></msub><mn>2</mn></msup></mrow></msqrt></mrow></math>. The angle is <math xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>φ</mi><mo>=</mo><mi mathvariant="normal">atan2</mi><mo>(</mo><msub><mi>v</mi><mi>q</mi></msub><mo>,</mo><msub><mi>v</mi><mi>d</mi></msub><mo>)</mo></mrow></math>. A nonzero <math xmlns="http://www.w3.org/1998/Math/MathML"><msub><mi>v</mi><mn>0</mn></msub></math> adds the same DC offset to every phase: this changes phase-to-neutral waveforms but does not affect their fundamental phasors or phase-to-phase voltages.</p>
+        </section>
+    <footer>
+      <span><strong>Engineering note:</strong> <math xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>φ</mi><mo>=</mo><mi mathvariant="normal">atan2</mi><mo>(</mo><msub><mi>v</mi><mi>q</mi></msub><mo>,</mo><msub><mi>v</mi><mi>d</mi></msub><mo>)</mo></mrow></math>. The <math xmlns="http://www.w3.org/1998/Math/MathML"><msub><mi>v</mi><mn>0</mn></msub></math> input is modeled as a constant common-mode term.</span>
+      <span>Self-contained · HTML + CSS + JavaScript · No dependencies</span>
+    </footer>
+  </main>
+
+  <script>
+    (() => {
+      'use strict';
+
+      // The amplitude-invariant inverse Park convention is used throughout.
+      const FREQUENCY = 60;
+      const OMEGA = 2 * Math.PI * FREQUENCY;
+      const TWO_PI = 2 * Math.PI;
+      const HORIZON = 2 / FREQUENCY;
+      const PHASE = (2 * Math.PI) / 3;
+      const VECTOR_CENTER = 180;
+      const VECTOR_RADIUS = 133;
+      const FIXED_SCALE_PU = 1.5;
+      const EPSILON = 1e-10;
+      const COLORS = ['#4ed5bf', '#a59aff', '#ffb56d'];
+
+      let vd = 1;
+      let vq = 0;
+      let v0 = 0;
+      let fixedMagnitude = false;
+      let signD = 1;
+      let signQ = 1;
+      let draggingVector = false;
+      let rmsPhasors = false;
+
+      const $ = (id) => document.getElementById(id);
+      const canvas = $('waveCanvas');
+      const ctx = canvas.getContext('2d', { alpha: false });
+      const vectorSvg = $('vectorSvg');
+      const rangeD = $('vdRange');
+      const rangeQ = $('vqRange');
+      const numberD = $('vdNumber');
+      const numberQ = $('vqNumber');
+      const rangeZero = $('v0Range');
+      const numberZero = $('v0Number');
+      const quadrants = [1, 2, 3, 4].map((i) => $('quad' + i));
+
+      const clamp = (x, low, high) => Math.max(low, Math.min(high, x));
+      const normalizeDegree = (rad) => ((rad * 180 / Math.PI) % 360 + 360) % 360;
+      const displayNumber = (x, places = 3) => (Math.abs(x) < 0.5 * 10 ** -places ? 0 : x).toFixed(places);
+      const signed = (x) => (x >= -0.0005 ? '+' : '−') + Math.abs(x).toFixed(3);
+      const signedAngle = (degrees) => {
+        // Report phasor angles in [-180, 180] relative to the cosine reference.
+        let deg = ((degrees + 180) % 360 + 360) % 360 - 180;
+        if (Math.abs(deg) < 0.00001) deg = 0;
+        return (deg < 0 ? '−' : '+') + Math.abs(deg).toFixed(1) + '°';
+      };
+
+      // Independent mode changes one axis without modifying the other.
+      // Fixed-peak mode preserves the normalized d/q vector and its quadrant.
+      function setD(value) {
+        if (!Number.isFinite(value)) return;
+        vd = clamp(value, fixedMagnitude ? -1 : -20, fixedMagnitude ? 1 : 20);
+        if (Math.abs(vd) > EPSILON) signD = Math.sign(vd);
+        if (fixedMagnitude) vq = signQ * Math.sqrt(Math.max(0, 1 - vd * vd));
+        updateUI();
+      }
+      function setQ(value) {
+        if (!Number.isFinite(value)) return;
+        vq = clamp(value, fixedMagnitude ? -1 : -20, fixedMagnitude ? 1 : 20);
+        if (Math.abs(vq) > EPSILON) signQ = Math.sign(vq);
+        if (fixedMagnitude) vd = signD * Math.sqrt(Math.max(0, 1 - vq * vq));
+        updateUI();
+      }
+      function setZero(value) {
+        if (!Number.isFinite(value)) return;
+        v0 = clamp(value, -20, 20);
+        updateUI();
+      }
+      function setMode(fixed) {
+        fixedMagnitude = Boolean(fixed);
+        if (fixedMagnitude) {
+          const amp = Math.hypot(vd, vq);
+          if (amp > EPSILON) { vd /= amp; vq /= amp; }
+          else { vd = 1; vq = 0; signD = 1; signQ = 1; }
+        }
+        updateUI();
+      }
+      function setAngle(angleRadians) {
+        if (!Number.isFinite(angleRadians)) return;
+        const amp = fixedMagnitude ? 1 : Math.max(EPSILON, Math.hypot(vd, vq));
+        vd = amp * Math.cos(angleRadians);
+        vq = amp * Math.sin(angleRadians);
+        if (Math.abs(vd) > EPSILON) signD = Math.sign(vd);
+        if (Math.abs(vq) > EPSILON) signQ = Math.sign(vq);
+        if (Math.abs(vd) < EPSILON) vd = 0;
+        if (Math.abs(vq) < EPSILON) vq = 0;
+        updateUI();
+      }
+      function setVectorCoordinates(nextD, nextQ) {
+        if (!Number.isFinite(nextD) || !Number.isFinite(nextQ)) return;
+        if (fixedMagnitude) { setAngle(Math.atan2(nextQ, nextD)); return; }
+        vd = clamp(nextD, -20, 20);
+        vq = clamp(nextQ, -20, 20);
+        if (Math.abs(vd) > EPSILON) signD = Math.sign(vd);
+        if (Math.abs(vq) > EPSILON) signQ = Math.sign(vq);
+        updateUI();
+      }
+
+      function voltagesAt(time) {
+        const theta = OMEGA * time;
+        // Phase B lags phase A by 120 degrees; phase C leads by 120 degrees.
+        return [0, -PHASE, PHASE].map((offset) =>
+          vd * Math.cos(theta + offset) - vq * Math.sin(theta + offset) + v0
+        );
+      }
+
+      function activeQuadrant() {
+        // Axis values are assigned according to the remembered component signs.
+        const dPositive = Math.abs(vd) < EPSILON ? signD > 0 : vd > 0;
+        const qPositive = Math.abs(vq) < EPSILON ? signQ > 0 : vq > 0;
+        if (dPositive && qPositive) return 1;
+        if (!dPositive && qPositive) return 2;
+        if (!dPositive && !qPositive) return 3;
+        return 4;
+      }
+
+      function updateVector() {
+        const magnitude = Math.hypot(vd, vq);
+        // The drawable radius is fixed; never rescale to accommodate a large voltage.
+        // Only the arrow geometry is truncated, not the underlying numerical data.
+        const drawnMagnitude = Math.min(magnitude, FIXED_SCALE_PU);
+        const unitX = magnitude > EPSILON ? vd / magnitude : 1;
+        const unitY = magnitude > EPSILON ? -vq / magnitude : 0;
+        const x = VECTOR_CENTER + VECTOR_RADIUS * drawnMagnitude / FIXED_SCALE_PU * unitX;
+        const y = VECTOR_CENTER + VECTOR_RADIUS * drawnMagnitude / FIXED_SCALE_PU * unitY;
+        const tipLength = Math.min(17, VECTOR_RADIUS * drawnMagnitude / FIXED_SCALE_PU * .42);
+        const baseX = x - tipLength * unitX;
+        const baseY = y - tipLength * unitY;
+        const perpX = -unitY;
+        const perpY = unitX;
+
+        const vectorNote = $('vectorScaleNote');
+        const overLimit = magnitude > FIXED_SCALE_PU + EPSILON;
+        vectorNote.textContent = overLimit
+          ? `Fixed 0–1.5 pu · Actual vector = ${displayNumber(magnitude)} pu (arrow clipped) · Edit numeric inputs for larger values`
+          : 'Fixed 0–1.5 pu · Rings = 0.5, 1.0, 1.5 pu · Drag to adjust';
+        vectorNote.classList.toggle('vector-overlimit', overLimit);
+        $('projectionX').setAttribute('x2', x.toFixed(3));
+        $('projectionX').setAttribute('y2', VECTOR_CENTER);
+        $('projectionY').setAttribute('x1', x.toFixed(3));
+        $('projectionY').setAttribute('x2', x.toFixed(3));
+        $('projectionY').setAttribute('y1', VECTOR_CENTER);
+        $('projectionY').setAttribute('y2', y.toFixed(3));
+        for (const id of ['vectorGlow', 'vectorArrow']) {
+          const line = $(id);
+          line.setAttribute('x2', x.toFixed(3));
+          line.setAttribute('y2', y.toFixed(3));
+        }
+        $('arrowHead').setAttribute('points', [
+          `${x},${y}`,
+          `${baseX + perpX * Math.min(6.3,tipLength/2)},${baseY + perpY * Math.min(6.3,tipLength/2)}`,
+          `${baseX - perpX * Math.min(6.3,tipLength/2)},${baseY - perpY * Math.min(6.3,tipLength/2)}`
+        ].join(' '));
+        $('arrowHead').setAttribute('visibility', magnitude > EPSILON ? 'visible' : 'hidden');
+        $('tipCircle').setAttribute('cx', x.toFixed(3));
+        $('tipCircle').setAttribute('cy', y.toFixed(3));
+
+        const deg = normalizeDegree(Math.atan2(vq, vd));
+        const arcRadius = 40;
+        const ax = VECTOR_CENTER + arcRadius * Math.cos(deg * Math.PI / 180);
+        const ay = VECTOR_CENTER - arcRadius * Math.sin(deg * Math.PI / 180);
+        const largeArc = deg > 180 ? 1 : 0;
+        $('angleArc').setAttribute('d', magnitude < EPSILON || deg < .1 || deg > 359.9 ? '' :
+          `M ${VECTOR_CENTER + arcRadius} ${VECTOR_CENTER} A ${arcRadius} ${arcRadius} 0 ${largeArc} 0 ${ax.toFixed(3)} ${ay.toFixed(3)}`);
+        $('phiValue').textContent = magnitude > EPSILON ? deg.toFixed(1) + '°' : '—';
+        vectorSvg.setAttribute('aria-valuenow', Math.round(deg));
+        vectorSvg.setAttribute('aria-valuetext', magnitude > EPSILON ? deg.toFixed(1) + ' degrees' : 'undefined phase angle at zero amplitude');
+      }
+
+      function updateUI() {
+        const magnitude = Math.hypot(vd, vq);
+        const dqLimit = fixedMagnitude ? 1 : Math.min(20, Math.max(3, Math.ceil(Math.max(Math.abs(vd),Math.abs(vq))*2)/2));
+        for (const range of [rangeD, rangeQ]) {
+          range.min = String(-dqLimit);
+          range.max = String(dqLimit);
+        }
+        for (const number of [numberD, numberQ]) {
+          number.min = String(fixedMagnitude ? -1 : -20);
+          number.max = String(fixedMagnitude ? 1 : 20);
+        }
+        const zeroLimit = Math.min(20, Math.max(2, Math.ceil(Math.abs(v0)*2)/2));
+        rangeZero.min = String(-zeroLimit);
+        rangeZero.max = String(zeroLimit);
+        for (const axis of ['d', 'q']) {
+          $(axis+'MinLabel').textContent = '−'+dqLimit.toFixed(1);
+          $(axis+'MaxLabel').textContent = '+'+dqLimit.toFixed(1);
+        }
+        $('zeroMinLabel').textContent = '−'+zeroLimit.toFixed(1);
+        $('zeroMaxLabel').textContent = '+'+zeroLimit.toFixed(1);
+        rangeD.value = String(vd);
+        rangeQ.value = String(vq);
+        rangeZero.value = String(v0);
+        numberD.value = displayNumber(vd);
+        numberQ.value = displayNumber(vq);
+        numberZero.value = displayNumber(v0);
+        $('independentButton').setAttribute('aria-pressed', String(!fixedMagnitude));
+        $('fixedButton').setAttribute('aria-pressed', String(fixedMagnitude));
+        $('modeExplainer').textContent = fixedMagnitude
+          ? 'The sinusoidal phase peak is fixed at 1 pu. Editing one axis automatically adjusts the other; zero-sequence remains independent.'
+          : 'Adjust either dq component freely; the other stays unchanged. The sinusoidal amplitude may be below or above 1 pu.';
+        $('acModeNote').innerHTML = `AC phase peak: <strong>${displayNumber(magnitude)} pu</strong> · ${fixedMagnitude ? 'fixed-peak mode' : 'independent dq control'}.`;
+        $('peakMetric').textContent = displayNumber(magnitude);
+        $('spacingMetric').textContent = magnitude > EPSILON ? '120°' : '—';
+        $('zeroMetric').textContent = signed(v0);
+        quadrants.forEach((button, i) => {
+          const isActive = magnitude > EPSILON && i + 1 === activeQuadrant();
+          button.classList.toggle('active', isActive);
+          button.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+        });
+        updateVector();
+        drawWaveform();
+        updatePhasors();
+      }
+
+      // ABC and stationary alpha-beta phasors use the same fixed cosine reference.
+      // Alpha and beta are also individual sinusoidal components, 90 degrees apart.
+      function phasorValues() {
+        const phi = Math.atan2(vq, vd);
+        const phiDeg = phi * 180 / Math.PI;
+        const peakMagnitude = Math.hypot(vd, vq);
+        const phasorMagnitude = rmsPhasors ? peakMagnitude / Math.SQRT2 : peakMagnitude;
+        return {
+          magnitude: phasorMagnitude,
+          peakMagnitude,
+          zeroSequence: v0,
+          anglesDefined: peakMagnitude > EPSILON,
+          abcDegrees: [phiDeg, phiDeg - 120, phiDeg + 120],
+          alphaBetaDegrees: [phiDeg, phiDeg - 90]
+        };
+      }
+      // Display three simultaneous AC phasors with a constant radius of 1.5 pu.
+      // The peak/RMS toggle affects this diagram, but not the dq component vector.
+      function updateAbcVectors(p) {
+        const clipped = p.magnitude > FIXED_SCALE_PU + EPSILON;
+        const shownMagnitude = Math.min(p.magnitude, FIXED_SCALE_PU);
+        const radialPixels = shownMagnitude * VECTOR_RADIUS / FIXED_SCALE_PU;
+        const labels = ['A', 'B', 'C'];
+        labels.forEach((name, i) => {
+          const a = p.abcDegrees[i] * Math.PI / 180;
+          const ux = Math.cos(a);
+          const uy = -Math.sin(a);
+          const x = VECTOR_CENTER + radialPixels * ux;
+          const y = VECTOR_CENTER + radialPixels * uy;
+          const arrowLength = Math.min(17, radialPixels * 0.55);
+          const baseX = x - arrowLength * ux;
+          const baseY = y - arrowLength * uy;
+          const px = -uy;
+          const py = ux;
+          const wing = Math.min(6.3, arrowLength / 2);
+          const line = $('abcLine' + name);
+          const tip = $('abcHead' + name);
+          const label = $('abcLabel' + name);
+          line.setAttribute('x2', x.toFixed(3));
+          line.setAttribute('y2', y.toFixed(3));
+          tip.setAttribute('points', [
+            `${x},${y}`,
+            `${baseX + px * wing},${baseY + py * wing}`,
+            `${baseX - px * wing},${baseY - py * wing}`
+          ].join(' '));
+          // Labels remain inside the drawing while the arrow tip reaches the ring.
+          const labelRadius = Math.min(radialPixels + 20, VECTOR_RADIUS + 15);
+          const tx = VECTOR_CENTER + labelRadius * ux;
+          const ty = VECTOR_CENTER + labelRadius * uy;
+          label.setAttribute('x', clamp(tx, 20, 327).toFixed(3));
+          label.setAttribute('y', clamp(ty, 24, 340).toFixed(3));
+          label.setAttribute('text-anchor', ux < -0.35 ? 'end' : (ux > 0.35 ? 'start' : 'middle'));
+          tip.setAttribute('visibility', p.anglesDefined ? 'visible' : 'hidden');
+          label.setAttribute('visibility', p.anglesDefined ? 'visible' : 'hidden');
+        });
+        const note = $('abcVectorNote');
+        note.textContent = clipped
+          ? `${rmsPhasors ? 'RMS' : 'Peak'} phasors = ${displayNumber(p.magnitude)} pu; arrows clipped at 1.5 pu · DC offset excluded.`
+          : `Fixed 0–1.5 pu · ${rmsPhasors ? 'RMS' : 'Peak'} fundamental phasors · DC offset excluded.`;
+        note.classList.toggle('vector-overlimit', clipped);
+        $('abcVectorSvg').setAttribute('aria-label',
+          `ABC fundamental phasors at ${displayNumber(p.magnitude)} pu ${rmsPhasors ? 'RMS' : 'peak'}; ` +
+          (p.anglesDefined ? `phase angles ${p.abcDegrees.map(signedAngle).join(', ')}; ` : 'zero amplitude; ') +
+          `fixed scale zero to 1.5 pu${clipped ? '; arrows clipped' : ''}`);
+      }
+      function updatePhasors() {
+        const p = phasorValues();
+        const phasorModule = displayNumber(p.magnitude);
+        ['A', 'B', 'C'].forEach((phase, i) => {
+          $('phasor' + phase + 'Mag').textContent = phasorModule;
+          $('phasor' + phase + 'Ang').textContent = p.anglesDefined ? '∠ ' + signedAngle(p.abcDegrees[i]) : '∠ —';
+        });
+        ['Alpha', 'Beta'].forEach((axis, i) => {
+          $('phasor' + axis + 'Mag').textContent = phasorModule;
+          $('phasor' + axis + 'Ang').textContent = p.anglesDefined ? '∠ ' + signedAngle(p.alphaBetaDegrees[i]) : '∠ —';
+        });
+        $('peakButton').setAttribute('aria-pressed', String(!rmsPhasors));
+        $('rmsButton').setAttribute('aria-pressed', String(rmsPhasors));
+        $('basisNote').textContent = `${rmsPhasors ? 'RMS' : 'Peak'} sinusoidal phasors: ${displayNumber(p.magnitude)} pu each (${rmsPhasors ? 'peak = '+displayNumber(p.peakMagnitude) : 'RMS = '+displayNumber(p.peakMagnitude/Math.SQRT2)} pu on the same base).`;
+        updateAbcVectors(p);
+      }
+
+      // Canvas is sized in CSS pixels, then scaled for high-density displays.
+      function canvasSize() {
+        const rect = canvas.getBoundingClientRect();
+        const dpr = Math.min(window.devicePixelRatio || 1, 3);
+        const w = Math.max(100, rect.width);
+        const h = Math.max(100, rect.height);
+        const pixelW = Math.round(w * dpr);
+        const pixelH = Math.round(h * dpr);
+        if (canvas.width !== pixelW || canvas.height !== pixelH) {
+          canvas.width = pixelW;
+          canvas.height = pixelH;
+        }
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        return { w, h };
+      }
+
+      function drawWaveform() {
+        if (!ctx) return;
+        const { w, h } = canvasSize();
+        const compact = w < 470;
+        const left = compact ? 41 : 49;
+        const right = compact ? 13 : 19;
+        const top = 25;
+        const bottom = compact ? 42 : 48;
+        const plotW = w - left - right;
+        const plotH = h - top - bottom;
+        const yCenter = top + plotH / 2;
+        const totalPeak = Math.hypot(vd, vq) + Math.abs(v0);
+        const yScale = plotH / (2 * FIXED_SCALE_PU);
+        const waveNote = $('waveClipNote');
+        const waveClipped = totalPeak > FIXED_SCALE_PU + EPSILON;
+        waveNote.hidden = !waveClipped;
+        if (waveClipped) waveNote.textContent = `Waveform exceeds ±1.5 pu (maximum magnitude ${displayNumber(totalPeak)} pu). Curves are clipped; numerical values remain exact.`;
+        const xFor = (t) => left + (t / HORIZON) * plotW;
+        const yFor = (value) => yCenter - yScale * value;
+
+        ctx.fillStyle = '#132031';
+        ctx.fillRect(0, 0, w, h);
+        ctx.lineWidth = 1;
+        ctx.font = (compact ? '10' : '11') + 'px ui-sans-serif, system-ui, sans-serif';
+        ctx.textBaseline = 'middle';
+        ctx.textAlign = 'right';
+
+        // Draw horizontal amplitude guides and their engineering units.
+        [-1.5, -1, -.5, 0, .5, 1, 1.5].forEach((amp) => {
+          const py = yFor(amp);
+          ctx.strokeStyle = amp === 0 ? '#466075' : '#293b50';
+          ctx.lineWidth = amp === 0 ? 1.25 : 1;
+          ctx.beginPath(); ctx.moveTo(left, py); ctx.lineTo(left + plotW, py); ctx.stroke();
+          ctx.fillStyle = '#819bb0';
+          ctx.fillText(amp.toFixed(1), left - 9, py);
+        });
+        ctx.fillStyle = '#7794a9';
+        ctx.fillText('pu', left - 9, 12);
+
+        // Vertical grid lines are located at half-cycle intervals.
+        ctx.textAlign = 'center';
+        for (let i = 0; i <= 4; i++) {
+          const tx = i * HORIZON / 4;
+          const px = xFor(tx);
+          ctx.strokeStyle = '#27394d';
+          ctx.lineWidth = 1;
+          ctx.beginPath(); ctx.moveTo(px, top); ctx.lineTo(px, top + plotH); ctx.stroke();
+          ctx.fillStyle = '#8ca3b6';
+          ctx.fillText((tx * 1000).toFixed(compact ? 1 : 2), px, top + plotH + 17);
+        }
+        ctx.textAlign = 'right';
+        ctx.fillStyle = '#668197';
+        ctx.fillText('ms', left + plotW, h - 7);
+
+        // The phase curves are recomputed from dq on every interactive change.
+        ctx.save();
+        ctx.beginPath(); ctx.rect(left, top - 1, plotW, plotH + 2); ctx.clip();
+        for (let phaseIndex = 0; phaseIndex < 3; phaseIndex++) {
+          const offset = phaseIndex === 0 ? 0 : phaseIndex === 1 ? -PHASE : PHASE;
+          ctx.beginPath();
+          for (let px = 0; px <= plotW + 0.5; px += 1.25) {
+            const t = px / plotW * HORIZON;
+            const theta = OMEGA * t + offset;
+            const value = vd * Math.cos(theta) - vq * Math.sin(theta) + v0;
+            const y = yFor(value);
+            if (px === 0) ctx.moveTo(left, y); else ctx.lineTo(left + px, y);
+          }
+          ctx.strokeStyle = COLORS[phaseIndex];
+          ctx.lineWidth = compact ? 2.2 : 2.7;
+          ctx.lineJoin = 'round';
+          ctx.lineCap = 'round';
+          ctx.stroke();
+        }
+
+        ctx.restore();
+      }
+
+      function updateAngleFromPointer(event) {
+        const rect = vectorSvg.getBoundingClientRect();
+        const x = (event.clientX - rect.left) / rect.width * 360 - VECTOR_CENTER;
+        const y = VECTOR_CENTER - (event.clientY - rect.top) / rect.height * 360;
+        if (Math.hypot(x, y) < 3) return;
+        if (fixedMagnitude) setAngle(Math.atan2(y, x));
+        else {
+          // The draggable area is limited to the fixed 1.5 pu circle.
+          const radial = Math.min(VECTOR_RADIUS, Math.hypot(x, y));
+          const a = Math.atan2(y, x);
+          const mag = FIXED_SCALE_PU * radial / VECTOR_RADIUS;
+          setVectorCoordinates(mag * Math.cos(a), mag * Math.sin(a));
+        }
+      }
+
+      rangeD.addEventListener('input', (e) => setD(Number(e.target.value)));
+      rangeQ.addEventListener('input', (e) => setQ(Number(e.target.value)));
+      numberD.addEventListener('change', (e) => setD(Number(e.target.value)));
+      numberQ.addEventListener('change', (e) => setQ(Number(e.target.value)));
+      rangeZero.addEventListener('input', (e) => setZero(Number(e.target.value)));
+      numberZero.addEventListener('change', (e) => setZero(Number(e.target.value)));
+      $('independentButton').addEventListener('click', () => setMode(false));
+      $('fixedButton').addEventListener('click', () => setMode(true));
+      for (let i = 0; i < 4; i++) {
+        // Each button moves to the center of its selected quadrant.
+        quadrants[i].addEventListener('click', () => setAngle((45 + 90 * i) * Math.PI / 180));
+      }
+      vectorSvg.addEventListener('pointerdown', (e) => {
+        if (e.button !== undefined && e.button !== 0) return;
+        draggingVector = true;
+        vectorSvg.setPointerCapture(e.pointerId);
+        updateAngleFromPointer(e);
+      });
+      vectorSvg.addEventListener('pointermove', (e) => {
+        if (draggingVector) updateAngleFromPointer(e);
+      });
+      function endPointer() { draggingVector = false; }
+      vectorSvg.addEventListener('pointerup', endPointer);
+      vectorSvg.addEventListener('pointercancel', endPointer);
+      vectorSvg.addEventListener('lostpointercapture', endPointer);
+      vectorSvg.addEventListener('keydown', (e) => {
+        if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) return;
+        e.preventDefault();
+        if (e.key === 'Home') setAngle(0);
+        else if (e.key === 'End') setAngle(TWO_PI - Math.PI / 180);
+        else setAngle(Math.atan2(vq, vd) + (e.key === 'ArrowRight' ? 1 : -1) * Math.PI / 180);
+      });
+
+      $('peakButton').addEventListener('click', () => {
+        rmsPhasors = false;
+        updatePhasors();
+      });
+      $('rmsButton').addEventListener('click', () => {
+        rmsPhasors = true;
+        updatePhasors();
+      });
+      $('resetButton').addEventListener('click', () => {
+        signD = 1;
+        signQ = 1;
+        vd = 1; vq = 0; v0 = 0; fixedMagnitude = false;
+        updateUI();
+      });
+      if (window.ResizeObserver) new ResizeObserver(() => drawWaveform()).observe(canvas);
+      window.addEventListener('resize', drawWaveform);
+      updateUI();
+
+      // Read-only diagnostics for offline validation and teaching examples.
+      window.dqExplorer = Object.freeze({
+        getState: () => ({vd, vq, v0, fixedMagnitude, magnitude: Math.hypot(vd,vq), phiDeg: Math.hypot(vd,vq)>EPSILON ? normalizeDegree(Math.atan2(vq, vd)) : null, frequencyHz: FREQUENCY, fixedScalePu: FIXED_SCALE_PU}),
+        getVoltagesAt: (time) => voltagesAt(time),
+        getPhasors: () => phasorValues(),
+        setPhasorBasis: (basis) => { rmsPhasors = basis === 'rms'; updatePhasors(); },
+        setD, setQ, setZero, setMode, setVectorCoordinates, setAngleDegrees: (degrees) => setAngle(degrees * Math.PI / 180)
+      });
+    })();
+  </script>
+</body>
+</html>
